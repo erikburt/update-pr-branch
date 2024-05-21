@@ -365,7 +365,7 @@ describe('getAutoUpdateCandidate()', () => {
 
     const res = await gitLib.getAutoUpdateCandidate(prList);
     expect(mockedListReviews).toHaveBeenCalled();
-    expect(utils.log).toHaveBeenCalledTimes(1);
+    expect(utils.log).toHaveBeenCalledTimes(2);
     expect(utils.printFailReason).toHaveBeenCalledTimes(1);
     expect(utils.printFailReason).toHaveBeenCalledWith(
       prList[0].number,
@@ -391,7 +391,7 @@ describe('getAutoUpdateCandidate()', () => {
 
     const res = await gitLib.getAutoUpdateCandidate(prList);
     expect(mockedListReviews).toHaveBeenCalled();
-    expect(utils.log).toHaveBeenCalledTimes(1);
+    expect(utils.log).toHaveBeenCalledTimes(2);
     expect(utils.printFailReason).toHaveBeenCalledTimes(1);
     expect(utils.printFailReason).toHaveBeenCalledWith(
       prList[0].number,
