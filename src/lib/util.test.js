@@ -11,11 +11,11 @@ describe('wait()', () => {
     const fn = jest.fn();
     utils.wait(100).then(fn);
 
-    jest.runTimersToTime(50);
+    jest.advanceTimersByTime(50);
     await Promise.resolve();
     expect(fn).not.toHaveBeenCalled();
 
-    jest.runTimersToTime(50);
+    jest.advanceTimersByTime(50);
     await Promise.resolve();
     expect(fn).toHaveBeenCalledTimes(1);
   });
@@ -38,5 +38,24 @@ describe('log()', () => {
     const msg = 'something went wrong';
     utils.log(msg);
     expect(console.info).toHaveBeenLastCalledWith('LOG >', msg);
+  });
+});
+
+describe('isStringTrue()', () => {
+  const isStringTrue = utils.isStringTrue;
+  test('should return the correct value based on the string', () => {
+    expect(isStringTrue('true')).toBe(true);
+    expect(isStringTrue('True')).toBe(true);
+    expect(isStringTrue('TRUE')).toBe(true);
+    expect(isStringTrue('tRue')).toBe(true);
+    expect(isStringTrue('false')).toBe(false);
+    expect(isStringTrue('False')).toBe(false);
+    expect(isStringTrue('FALSE')).toBe(false);
+    expect(isStringTrue('fAlse')).toBe(false);
+  });
+
+  test('should return false if the string is not a boolean', () => {
+    expect(isStringTrue('something')).toBe(false);
+    expect(isStringTrue()).toBe(false);
   });
 });

@@ -5841,7 +5841,13 @@ var core = __nccwpck_require__(186);
 // CONCATENATED MODULE: ./src/lib/github.js
 const github_core = __nccwpck_require__(186);
 const github = __nccwpck_require__(438);
-const { log, printFailReason, wait } = __nccwpck_require__(103);
+const {
+  log,
+  printFailReason,
+  wait,
+  isStringTrue,
+  isStringFalse,
+} = __nccwpck_require__(103);
 
 const getOctokit = () => {
   const token = github_core.getInput('token');
@@ -5852,11 +5858,22 @@ const getOpenPRs = async () => {
   const octokit = getOctokit();
   const repo = github.context.repo;
   const baseBranch = github_core.getInput('base');
+  const sort = github_core.getInput('sort');
+  const sortDirection = github_core.getInput('direction');
+
+  let sortConfig = {};
+  if (sort) {
+    sortConfig = {
+      sort: sort.toLowerCase(),
+      direction: sortDirection ? sortDirection.toLowerCase() : undefined,
+    };
+  }
 
   const { data } = await octokit.pulls.list({
     ...repo,
     base: baseBranch,
     state: 'open',
+    ...sortConfig,
   });
 
   return data;
@@ -5977,16 +5994,27 @@ const getApprovalStatus = async (pullNumber) => {
   };
 };
 
+const filterApplicablePRs = (openPRs) => {
+  const includeNonAutoMergePRs = isStringFalse(github_core.getInput('require_auto_merge_enabled'));
+  if (includeNonAutoMergePRs) {
+    return openPRs;
+  }
+  const autoMergeEnabledPRs = openPRs.filter((item) => item.auto_merge);
+  log(`Count of auto-merge enabled PRs: ${autoMergeEnabledPRs.length}`);
+  return autoMergeEnabledPRs;
+};
 /**
  * find a applicable PR to update
  */
 const getAutoUpdateCandidate = async (openPRs) => {
   if (!openPRs) return null;
 
-  const requiredApprovalCount = github_core.getInput('required_approval_count');
-  const requirePassedChecks = github_core.getInput('require_passed_checks').toUpperCase() === 'TRUE';
+  const requirePassedChecks = isStringTrue(
+    github_core.getInput('require_passed_checks'),
+  );
+  const applicablePRs = filterApplicablePRs(openPRs);
 
-  for (const pr of openPRs) {
+  for (const pr of applicablePRs) {
     const {
       number: pullNumber,
       head: { sha },
@@ -5995,11 +6023,8 @@ const getAutoUpdateCandidate = async (openPRs) => {
     log(`Checking applicable status of #${pullNumber}`);
 
     // #1 check whether the pr has enough approvals
-    const {
-      changesRequestedCount,
-      approvalCount,
-      requiredApprovalCount,
-    } = await getApprovalStatus(pullNumber);
+    const { changesRequestedCount, approvalCount, requiredApprovalCount } =
+      await getApprovalStatus(pullNumber);
     if (changesRequestedCount || approvalCount < requiredApprovalCount) {
       const reason = `approvalsCount: ${approvalCount}, requiredApprovalCount: ${requiredApprovalCount}, changesRequestedReviews: ${changesRequestedCount}`;
       printFailReason(pullNumber, reason);
@@ -6092,12 +6117,16 @@ __nccwpck_require__.r(__webpack_exports__);
 /* harmony export */ __nccwpck_require__.d(__webpack_exports__, {
 /* harmony export */   "log": () => /* binding */ log,
 /* harmony export */   "printFailReason": () => /* binding */ printFailReason,
-/* harmony export */   "wait": () => /* binding */ wait
+/* harmony export */   "wait": () => /* binding */ wait,
+/* harmony export */   "isStringTrue": () => /* binding */ isStringTrue,
+/* harmony export */   "isStringFalse": () => /* binding */ isStringFalse
 /* harmony export */ });
 const log = console.info.bind(null, 'LOG >');
 const printFailReason = (pullNumber, reason) =>
   log(`Won't update #${pullNumber}, the reason:\n      > ${reason}`);
 const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const isStringTrue = (str = '') => str.toLowerCase() === 'true';
+const isStringFalse = (str = '') => str.toString().toLowerCase() === 'false';
 
 
 /***/ }),

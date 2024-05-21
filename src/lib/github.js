@@ -1,6 +1,12 @@
 const core = require('@actions/core');
 const github = require('@actions/github');
-const { log, printFailReason, wait } = require('./util');
+const {
+  log,
+  printFailReason,
+  wait,
+  isStringTrue,
+  isStringFalse,
+} = require('./util');
 
 const getOctokit = () => {
   const token = core.getInput('token');
@@ -11,11 +17,22 @@ export const getOpenPRs = async () => {
   const octokit = getOctokit();
   const repo = github.context.repo;
   const baseBranch = core.getInput('base');
+  const sort = core.getInput('sort');
+  const sortDirection = core.getInput('direction');
+
+  let sortConfig = {};
+  if (sort) {
+    sortConfig = {
+      sort: sort.toLowerCase(),
+      direction: sortDirection ? sortDirection.toLowerCase() : undefined,
+    };
+  }
 
   const { data } = await octokit.pulls.list({
     ...repo,
     base: baseBranch,
     state: 'open',
+    ...sortConfig,
   });
 
   return data;
@@ -136,16 +153,27 @@ export const getApprovalStatus = async (pullNumber) => {
   };
 };
 
+export const filterApplicablePRs = (openPRs) => {
+  const includeNonAutoMergePRs = isStringFalse(core.getInput('require_auto_merge_enabled'));
+  if (includeNonAutoMergePRs) {
+    return openPRs;
+  }
+  const autoMergeEnabledPRs = openPRs.filter((item) => item.auto_merge);
+  log(`Count of auto-merge enabled PRs: ${autoMergeEnabledPRs.length}`);
+  return autoMergeEnabledPRs;
+};
 /**
  * find a applicable PR to update
  */
 export const getAutoUpdateCandidate = async (openPRs) => {
   if (!openPRs) return null;
 
-  const requiredApprovalCount = core.getInput('required_approval_count');
-  const requirePassedChecks = core.getInput('require_passed_checks').toUpperCase() === 'TRUE';
+  const requirePassedChecks = isStringTrue(
+    core.getInput('require_passed_checks'),
+  );
+  const applicablePRs = filterApplicablePRs(openPRs);
 
-  for (const pr of openPRs) {
+  for (const pr of applicablePRs) {
     const {
       number: pullNumber,
       head: { sha },
@@ -154,11 +182,8 @@ export const getAutoUpdateCandidate = async (openPRs) => {
     log(`Checking applicable status of #${pullNumber}`);
 
     // #1 check whether the pr has enough approvals
-    const {
-      changesRequestedCount,
-      approvalCount,
-      requiredApprovalCount,
-    } = await getApprovalStatus(pullNumber);
+    const { changesRequestedCount, approvalCount, requiredApprovalCount } =
+      await getApprovalStatus(pullNumber);
     if (changesRequestedCount || approvalCount < requiredApprovalCount) {
       const reason = `approvalsCount: ${approvalCount}, requiredApprovalCount: ${requiredApprovalCount}, changesRequestedReviews: ${changesRequestedCount}`;
       printFailReason(pullNumber, reason);

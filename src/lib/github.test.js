@@ -5,7 +5,18 @@ const utils = require('./util');
 
 jest.mock('@actions/core');
 jest.mock('@actions/github');
-jest.mock('./util');
+jest.mock('./util', () => {
+  const originalUtil = jest.requireActual('./util');
+  const mockList = ['log', 'printFailReason', 'wait'];
+  const mockedMethods = {};
+  Object.keys(originalUtil).forEach((methodName) => {
+    mockedMethods[methodName] = originalUtil[methodName];
+    if (mockList.includes(methodName)) {
+      mockedMethods[methodName] = jest.fn();
+    }
+  });
+  return mockedMethods;
+});
 
 const token = 'FAKE_TOKEN';
 const base = 'FAKE_BASE';
@@ -16,7 +27,7 @@ const fakeEnv = {
   token,
   base,
   required_approval_count: requiredApprovalCount,
-  require_passed_checks: 'true'
+  require_passed_checks: 'true',
 };
 
 const oldEnv = process.env;
@@ -111,6 +122,49 @@ describe('getOpenPRs()', () => {
     });
 
     expect(res).toEqual(mockedResponse.data);
+  });
+  test('should pass sort config if set', async () => {
+    process.env = {
+      ...oldEnv,
+      ...fakeEnv,
+      sort: 'updated',
+      direction: 'desc',
+    };
+    core.getInput.mockImplementation((name) => process.env[name]);
+
+    const mockedMethod = jest.fn().mockResolvedValue(mockedResponse);
+    github.getOctokit.mockReturnValue({
+      pulls: { list: mockedMethod },
+    });
+    await gitLib.getOpenPRs(pullNumber);
+
+    expect(mockedMethod).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sort: 'updated',
+        direction: 'desc',
+      }),
+    );
+  });
+  test('when sort direct is not set', async () => {
+    process.env = {
+      ...oldEnv,
+      ...fakeEnv,
+      sort: 'updated',
+    };
+    core.getInput.mockImplementation((name) => process.env[name]);
+
+    const mockedMethod = jest.fn().mockResolvedValue(mockedResponse);
+    github.getOctokit.mockReturnValue({
+      pulls: { list: mockedMethod },
+    });
+    await gitLib.getOpenPRs(pullNumber);
+
+    expect(mockedMethod).toHaveBeenCalledWith(
+      expect.objectContaining({
+        sort: 'updated',
+        direction: undefined,
+      }),
+    );
   });
 });
 
@@ -291,6 +345,15 @@ describe('getAutoUpdateCandidate()', () => {
     expect(res).toBe(null);
   });
 
+  [false, 'false'].forEach((value) => {
+    test(`Filter applicable PRs can exclude auto-merge if configured with ${value} (${typeof value})`, async () => {
+      const data = { require_auto_merge_enabled: value };
+      core.getInput.mockImplementation((name) => data[name]);
+      const obtained = gitLib.filterApplicablePRs(pullsList);
+      expect(obtained.length).toBe(pullsList.length);
+    });
+  });
+
   test('PR with request-for-change review will not be selected', async () => {
     const prList = [{ ...pullsList.data[0], auto_merge: {} }];
     const mockedListReviews = jest.fn().mockResolvedValue(reviewsList);
@@ -337,7 +400,7 @@ describe('getAutoUpdateCandidate()', () => {
     expect(mockedGet).toHaveBeenCalledTimes(0);
     expect(res).toBe(null);
   });
-  
+
   test('PR with mergeable !== true will not be selected', async () => {
     // has 2 approvals, not request for change review
     const reviews = {
@@ -497,7 +560,7 @@ describe('getAutoUpdateCandidate()', () => {
     const res = await gitLib.getAutoUpdateCandidate(prList);
     expect(res).toBe(prList[0]);
   });
-  
+
   test('Should return the first PR if it is all good', async () => {
     // has 2 approvals, no request for change review
     const reviews = {

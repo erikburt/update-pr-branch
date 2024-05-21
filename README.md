@@ -62,6 +62,32 @@ Default: true
 
 The action will skip PRs that have failed checks.
 
+### `sort`
+
+**Optional**
+
+What to sort results by. Can be either `created`, `updated`, `popularity` (comment count) or `long-running` (age, filtering by pulls updated in the last month).
+
+Notice: this is an option provided by github rest api. In this github action, we simply proxy this parameter (and the `direction` paramter below). Check more [here](https://octokit.github.io/rest.js/v18#pulls-list)
+
+### `direction`
+
+**Optional**
+
+The direction of the sort. Can be either `asc` or `desc`. Default: `desc` when sort is `created` or sort is not specified, otherwise `asc`.
+
+
+This github action doesn't set any default parameters.
+
+### `require_auto_merge_enabled`
+
+**Optional**
+
+Check if having auto-merge enabled in the PR is required, in order for the PR to
+be considered. It defaults to `true`, but if set to `false`, all PRs are
+considered for update (not just those with auto-merge enabled).
+
+
 ## Example usage
 
 ```yml
@@ -82,6 +108,9 @@ jobs:
           base: 'master'
           required_approval_count: 2
           require_passed_checks: false
+          sort: 'created'
+          direction: 'desc'
+          require_auto_merge_enabled: false
 ```
 
 Replace the `VERSION_YOU_WANT_TO_USE` with the actual version you want to use, check the version format [here](https://docs.github.com/en/actions/reference/workflow-syntax-for-github-actions#jobsjob_idstepsuses)
